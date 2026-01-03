@@ -49,9 +49,6 @@ app.use(express.static('frontend'));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend', 'config.js'));
-});
 
 // ============================================
 // MONGODB CONNECTION
