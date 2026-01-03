@@ -1,45 +1,15 @@
-// server.js - Quiz Website Backend with MongoDB (FIXED FOR PRODUCTION)
+// server.js - Quiz Website Backend with MongoDB
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const path = require('path');
+const path = require('path'); // ADD THIS LINE
 
 const app = express();
 
-// ============================================
-// CORS CONFIGURATION (FIXED FOR PRODUCTION)
-// ============================================
-const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5000',
-    'http://127.0.0.1:5000',
-    'https://quiz-master-zoo7.onrender.com', // Replace with your actual Render URL
-];
-
-// Add your custom domain if you have one
-if (process.env.FRONTEND_URL) {
-    allowedOrigins.push(process.env.FRONTEND_URL);
-}
-
-app.use(cors({
-    origin: function(origin, callback) {
-        // Allow requests with no origin (mobile apps, Postman, curl, etc.)
-        if (!origin) return callback(null, true);
-        
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            console.log('❌ CORS blocked origin:', origin);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
+// Middleware
+app.use(cors());
 app.use(express.json());
 
 // Serve static files from frontend directory
@@ -50,32 +20,17 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
-// ============================================
-// MONGODB CONNECTION
-// ============================================
+// MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://amitkumarnayak330_db_user:YMwkvBag3LpTT4rJ@cluster0.vppxlxb.mongodb.net/quizmaster?appName=Cluster0';
-
 mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })
-.then(() => {
-    console.log('✅ MongoDB Connected');
-    console.log('📊 Database:', mongoose.connection.name);
-})
-.catch(err => {
-    console.error('❌ MongoDB Connection Error:', err);
-    process.exit(1);
-});
+.then(() => console.log('✅ MongoDB Connected'))
+.catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// ============================================
-// JWT SECRET (IMPORTANT FOR PRODUCTION)
-// ============================================
+// JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-    console.warn('⚠️  WARNING: Using default JWT_SECRET in production! Set JWT_SECRET environment variable.');
-}
 
 // ============================================
 // MONGODB SCHEMAS
@@ -122,8 +77,7 @@ const Question = mongoose.model('Question', questionSchema);
 // ============================================
 
 const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    const token = req.headers['authorization']?.split(' ')[1];
     
     if (!token) {
         return res.status(401).json({ error: 'Access token required' });
@@ -131,8 +85,7 @@ const authenticateToken = (req, res, next) => {
     
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
-            console.error('Token verification error:', err.message);
-            return res.status(403).json({ error: 'Invalid or expired token' });
+            return res.status(403).json({ error: 'Invalid token' });
         }
         req.user = user;
         next();
@@ -164,10 +117,6 @@ app.post('/api/auth/register', async (req, res) => {
             return res.status(400).json({ error: 'Password must be at least 4 characters' });
         }
         
-        if (!['student', 'teacher'].includes(role)) {
-            return res.status(400).json({ error: 'Invalid role' });
-        }
-        
         // Check if user exists
         const existingUser = await User.findOne({ username });
         if (existingUser) {
@@ -186,14 +135,12 @@ app.post('/api/auth/register', async (req, res) => {
         
         await user.save();
         
-        // Generate token with expiration
+        // Generate token
         const token = jwt.sign(
             { username: user.username, role: user.role },
             JWT_SECRET,
             { expiresIn: '24h' }
         );
-        
-        console.log('✅ User registered:', username, 'Role:', role);
         
         res.status(201).json({
             message: 'User created successfully',
@@ -203,39 +150,33 @@ app.post('/api/auth/register', async (req, res) => {
         
     } catch (error) {
         console.error('Register error:', error);
-        res.status(500).json({ error: 'Server error during registration' });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
-// Login (FIXED - Now includes expiresIn)
+// Login
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password, role } = req.body;
         
-        console.log('🔐 Login attempt:', { username, role });
-        
         // Find user
         const user = await User.findOne({ username, role });
         if (!user) {
-            console.log('❌ User not found:', username, role);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         
         // Check password
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
-            console.log('❌ Invalid password for:', username);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         
-        // Generate token with expiration (FIXED)
-        const token = jwt.sign(
-            { username: user.username, role: user.role },
-            JWT_SECRET,
-            { expiresIn: '24h' } // IMPORTANT: This was missing!
-        );
-        
-        console.log('✅ Login successful:', username);
+        // Generate token
+       const token = jwt.sign(
+    { username: user.username, role: user.role },
+    JWT_SECRET
+);
+
         
         res.json({
             message: 'Login successful',
@@ -245,7 +186,7 @@ app.post('/api/auth/login', async (req, res) => {
         
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ error: 'Server error during login' });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -293,10 +234,6 @@ app.post('/api/questions', authenticateToken, isTeacher, async (req, res) => {
             return res.status(400).json({ error: 'Must provide exactly 4 options' });
         }
         
-        if (correctAnswer < 0 || correctAnswer > 3) {
-            return res.status(400).json({ error: 'Correct answer must be between 0 and 3' });
-        }
-        
         const newQuestion = new Question({
             category,
             question,
@@ -306,8 +243,6 @@ app.post('/api/questions', authenticateToken, isTeacher, async (req, res) => {
         });
         
         await newQuestion.save();
-        
-        console.log('✅ Question added by:', req.user.username);
         
         res.status(201).json({
             message: 'Question added successfully',
@@ -388,8 +323,6 @@ app.post('/api/scores', authenticateToken, async (req, res) => {
         });
         
         await newScore.save();
-        
-        console.log('✅ Score submitted:', req.user.username, score + '/' + total);
         
         res.status(201).json({
             message: 'Score submitted successfully',
@@ -478,18 +411,6 @@ app.get('/api/students', authenticateToken, isTeacher, async (req, res) => {
 });
 
 // ============================================
-// HEALTH CHECK ENDPOINT
-// ============================================
-app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-        environment: process.env.NODE_ENV || 'development'
-    });
-});
-
-// ============================================
 // SEED DEFAULT QUESTIONS (ONE-TIME SETUP)
 // ============================================
 
@@ -498,7 +419,7 @@ app.post('/api/seed-questions', async (req, res) => {
         const count = await Question.countDocuments();
         
         if (count > 0) {
-            return res.json({ message: 'Questions already exist', count });
+            return res.json({ message: 'Questions already exist' });
         }
         
         const defaultQuestions = [
@@ -526,29 +447,12 @@ app.post('/api/seed-questions', async (req, res) => {
         
         await Question.insertMany(defaultQuestions);
         
-        console.log('✅ Default questions seeded');
-        
         res.json({ message: 'Default questions seeded successfully', count: defaultQuestions.length });
         
     } catch (error) {
         console.error('Seed questions error:', error);
         res.status(500).json({ error: 'Server error' });
     }
-});
-
-// ============================================
-// ERROR HANDLING
-// ============================================
-
-// 404 Handler
-app.use((req, res) => {
-    res.status(404).json({ error: 'Route not found' });
-});
-
-// Global error handler
-app.use((err, req, res, next) => {
-    console.error('Global error:', err);
-    res.status(500).json({ error: 'Internal server error' });
 });
 
 // ============================================
@@ -560,14 +464,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 Frontend available at http://localhost:${PORT}`);
-    console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
-    console.log(`🔒 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`⏰ Server started at: ${new Date().toISOString()}`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('👋 SIGTERM received, closing server gracefully');
-    mongoose.connection.close();
-    process.exit(0);
 });
