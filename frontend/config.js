@@ -8,7 +8,7 @@ const CONFIG = {
         
         // Local development
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            return 'http://localhost:5000';
+            return 'https://quiz-master-zoo7.onrender.com';
         }
         
         // Production - uses same domain as frontend
